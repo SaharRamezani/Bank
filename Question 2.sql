@@ -1,19 +1,51 @@
-﻿--DROP VIEW NatCode
-
-CREATE VIEW NatCode AS
-
-WITH cte_IsValid AS
+CREATE PROCEDURE STOD  
+    @DesDepVar INT,  
+    @SourceDepVar INT
+AS  
+    WITH DirectReports(SourceDep, DesDep, TrnTime, tLevel) AS
 (
-	SELECT CASE WHEN [dbo].[Validation](FORMAT(CONVERT(BIGINT, Customer.NatCod), '0000000000')) = 1 THEN 'Valid' ELSE 'Not Valid' END AS Valid, -- برای اضافه کردن صفر درصورت کم بودن ارقام
-	       Customer.CID
-	FROM Customer
+SELECT SourceDep, DesDep, TrnTime, 0 AS tLevel
+FROM dbo.Trn_Src_Des
+WHERE Trn_Src_Des.DesDep=@DesDepVar
+UNION
+SELECT SourceDep, DesDep, TrnTime, 0 AS tLevel
+FROM dbo.Trn_Src_Des
+WHERE Trn_Src_Des.SourceDep IS NULL  AND Trn_Src_Des.DesDep=@SourceDepVar
+UNION ALL
+SELECT e.SourceDep, e.DesDep, e.TrnTime, tLevel + 1
+FROM dbo.Trn_Src_Des AS e
+INNER JOIN DirectReports AS d
+ON e.SourceDep = d.DesDep
 )
-SELECT Customer.CID,
-       Customer.[Name],
-       Customer.BirthDate,
-	   Customer.[Add],
-	   Customer.Tel,
-	   Customer.NatCod,
-	   cte_IsValid.Valid
-FROM Customer
-INNER JOIN cte_IsValid ON cte_IsValid.CID = Customer.CID
+SELECT SourceDep, DesDep, TrnTime--, tLevel,
+--ROW_NUMBER() OVER (PARTITION BY SourceDep, DesDep, TrnTime ORDER BY SourceDep, DesDep, TrnTime ASC) AS Row#
+FROM DirectReports
+--ORDER BY DesDep
+Group by SourceDep, DesDep, TrnTime
+OPTION (MAXRECURSION 0)
+--WHERE
+--SELECT * FROM  dbo.Trn_Src_Des
+GO  
+WITH DirectReports(SourceDep, DesDep, TrnTime, tLevel) AS
+(
+    SELECT SourceDep, DesDep, TrnTime, 0 AS tLevel
+    FROM dbo.Trn_Src_Des
+    WHERE Trn_Src_Des.DesDep=null
+UNION
+    SELECT SourceDep, DesDep, TrnTime, 0 AS tLevel
+    FROM dbo.Trn_Src_Des
+    WHERE Trn_Src_Des.SourceDep IS NULL  AND Trn_Src_Des.DesDep=1
+    UNION ALL
+    SELECT e.SourceDep, e.DesDep, e.TrnTime, tLevel + 1
+    FROM dbo.Trn_Src_Des AS e
+        INNER JOIN DirectReports AS d
+        ON e.SourceDep = d.DesDep
+)
+SELECT SourceDep, DesDep, TrnTime--, EmployeeLevel,
+--ROW_NUMBER() OVER (PARTITION BY SourceDep, DesDep, TrnTime ORDER BY SourceDep, DesDep, TrnTime ASC) AS Row#
+FROM DirectReports
+--ORDER BY DesDep
+Group by SourceDep, DesDep, TrnTime
+OPTION (MAXRECURSION 0)
+--WHERE
+--SELECT * FROM  dbo.Trn_Src_Des
